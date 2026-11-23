@@ -47,9 +47,12 @@ jobs:
       # THU TU QUAN TRONG: build spec (onedir) TRUOC, roi moi build cau noi
       # onefile. Build onefile bang dong lenh se tu sinh lai file .spec
       # (ghi de AutoClickTool.spec) - neu build no truoc thi build spec sau
-      # se ra onefile chu khong ra onedir nua. --specpath giu file .spec
-      # sinh ra o cho rieng, khong dong vao spec cua repo. Zip thu muc
-      # onedir ngay sau khi build xong de buoc sau khong anh huong toi no.
+      # se ra onefile chu khong ra onedir nua. Zip thu muc onedir ngay sau
+      # khi build xong de buoc sau khong anh huong toi no. KHONG dung
+      # --specpath: no lam duong dan tuong doi --icon/--add-data duoc giai
+      # theo thu muc chua .spec (loi "Unable to find ...\bridge-spec\
+      # icon_AutoClickTool.ico", run #7). Ghi de ban sao .spec cua runner
+      # o buoc nay vo hai vi onedir da build va dong zip xong.
       - name: Build exe onedir (spec)
         run: python -m PyInstaller --noconfirm --clean AutoClickTool.spec
 
@@ -61,7 +64,7 @@ jobs:
           Get-Item "AutoClickTool-$tag.zip" | Select-Object Length, FullName
 
       - name: Build exe cau noi onefile
-        run: python -m PyInstaller --noconfirm --clean --onefile --windowed --name AutoClickTool --icon icon_AutoClickTool.ico --add-data "icon_AutoClickTool.ico;." --hidden-import pynput.keyboard._win32 --hidden-import pynput.mouse._win32 --hidden-import pystray._win32 --specpath .\bridge-spec AutoClickTool.pyw
+        run: python -m PyInstaller --noconfirm --clean --onefile --windowed --name AutoClickTool --icon icon_AutoClickTool.ico --add-data "icon_AutoClickTool.ico;." --hidden-import pynput.keyboard._win32 --hidden-import pynput.mouse._win32 --hidden-import pystray._win32 AutoClickTool.pyw
 
       - name: Kiem tra exe
         run: |
