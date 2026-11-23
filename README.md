@@ -28,7 +28,7 @@ Chạy `Install_AutoClickTool.bat` (cài Python 3.11 nếu chưa có + các thư
 python AutoClickTool.pyw
 ```
 
-Muốn file exe, chạy `Build_AutoClickTool.bat` (dùng PyInstaller onedir, file ra ở `dist\AutoClickTool\AutoClickTool.exe`, kèm zip `AutoClickTool-v1.1.8.zip` chứa cả thư mục app). Tải zip về, giải nén, chạy file exe trong thư mục `AutoClickTool` — không cần cài thêm gì.
+Muốn file exe, chạy `Build_AutoClickTool.bat` (dùng PyInstaller onedir, file ra ở `dist\AutoClickTool\AutoClickTool.exe`, kèm zip `AutoClickTool-v1.2.0.zip` chứa cả thư mục app). Tải zip về, giải nén, chạy file exe trong thư mục `AutoClickTool` — không cần cài thêm gì.
 
 ### Build tự động bằng GitHub Actions
 
@@ -55,6 +55,9 @@ Mỗi hành động là `[tên, dữ liệu, thời gian_giây_tính_từ_lúc_b
 | `mouse_scroll` | `[x, y, dx, dy]` |
 
 ## Lịch sử
+
+### 1.2.0 (2026-11-24)
+- Chỉ đổi số phiên bản để test cơ chế tự cập nhật (code cập nhật giữ nguyên như 1.1.8).
 
 ### 1.1.8 (2026-11-24)
 - Sửa lỗi cập nhật 1.1.6 -> 1.1.7 thất bại: updater 1.1.6 đổi cả thư mục app, nhưng bản 1.1.6 đang chạy là exe 1 file nằm lẻ trong thư mục chung (Downloads/Desktop) nên Windows không cho đổi tên cả thư mục đó; script phụ thử lại 120 lần (~5 phút) rồi bỏ cuộc, mở lại exe 1 file cũ và exe cũ gặp đúng lỗi DLL. Nay phân biệt 2 dạng cài đặt: bản onedir (có thư mục `_internal` cạnh exe) thì đổi thư mục như cũ; bản 1 file thì cài mới bản onedir vào `%LOCALAPPDATA%\AutoClickTool` (mang config theo, mở exe mới lên), không đổi tên gì hết. Từ 1.1.8 trở đi app nằm trong thư mục riêng nên tự cập nhật chạy đúng. Lưu ý: bản 1.1.6/1.1.7 đang chạy vẫn dùng code updater cũ nên không tự cập nhật lên 1.1.8 được, phải tải zip 1.1.8 về chạy tay 1 lần. Script đổi thư mục giảm số lần thử lại 120 -> 60, và trước khi thoát để cập nhật app dừng cả tray icon + listener cho tiến trình tắt hẳn.

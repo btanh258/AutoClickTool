@@ -2,7 +2,7 @@
 chcp 65001 >nul
 setlocal
 echo ==========================================
-echo      BUILD AUTOCLICK TOOL 1.1.8 (EXE - ONEDIR)
+echo      BUILD AUTOCLICK TOOL 1.2.0 (EXE - ONEDIR)
 echo ==========================================
 echo.
 python --version >nul 2>&1
@@ -20,9 +20,9 @@ if %errorlevel% neq 0 (
 )
 echo.
 echo [OK] File exe: dist\AutoClickTool\AutoClickTool.exe (onedir)
-powershell -NoProfile -Command "Compress-Archive -Path 'dist\AutoClickTool' -DestinationPath 'AutoClickTool-v1.1.8.zip' -Force"
-echo [OK] File zip: AutoClickTool-v1.1.8.zip
+powershell -NoProfile -Command "Compress-Archive -Path 'dist\AutoClickTool' -DestinationPath 'AutoClickTool-v1.2.0.zip' -Force"
+echo [OK] File zip: AutoClickTool-v1.2.0.zip
 echo.
-echo Upload file zip len release GitHub v1.1.8.
+echo Upload file zip len release GitHub v1.2.0.
 echo Nguoi dung giai nen zip roi chay exe trong thu muc AutoClickTool.
 pause

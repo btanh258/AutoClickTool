@@ -78,7 +78,7 @@ except Exception:
 ctk.set_appearance_mode("System")
 ctk.set_default_color_theme("blue")
 
-VERSION = "1.1.8"
+VERSION = "1.2.0"
 REPO = "btanh258/AutoClickTool"
 RELEASES_API = f"https://api.github.com/repos/{REPO}/releases/latest"
 RELEASES_PAGE = f"https://github.com/{REPO}/releases"
