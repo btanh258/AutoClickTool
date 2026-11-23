@@ -30,6 +30,15 @@ python AutoClickTool.pyw
 
 Muốn file exe duy nhất, chạy `Build_AutoClickTool.bat` (dùng PyInstaller, file ra ở `dist\AutoClickTool.exe`, kèm zip `AutoClickTool-1.1.1.zip`).
 
+### Build tự động bằng GitHub Actions
+
+PyInstaller chỉ build được cho đúng hệ điều hành nó đang chạy, nên không build exe Windows trên máy Linux được. Repo này có workflow `.github/workflows/build.yml` chạy trên máy Windows của GitHub:
+
+- **Tự động:** mỗi lần push tag `vX.Y.Z` (vd `v1.1.1`), workflow build exe rồi gắn `AutoClickTool.exe` (+ zip) vào release của tag đó.
+- **Chạy tay:** vào tab Actions → *Build exe* → *Run workflow*, nhập tag của release cần gắn exe (vd `v1.1.1`), bấm Run.
+
+Nhờ vậy tính năng tự cập nhật trong app luôn tìm thấy file exe trên release.
+
 ## Cấu hình
 
 File `AutoClickTool_config.json` nằm cạnh file exe / file `.pyw` (không theo thư mục hiện tại nữa, nên chạy từ shortcut vẫn giữ nguyên slot). Lưu: tên + đường dẫn 3 slot, số vòng, thời gian nghỉ, tốc độ, tùy chọn ghi chuột/cuộn, tự cập nhật. File này chứa đường dẫn trên máy bạn nên không đưa lên GitHub.
