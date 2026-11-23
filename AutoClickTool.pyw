@@ -78,7 +78,7 @@ except Exception:
 ctk.set_appearance_mode("System")
 ctk.set_default_color_theme("blue")
 
-VERSION = "1.1.7"
+VERSION = "1.1.8"
 REPO = "btanh258/AutoClickTool"
 RELEASES_API = f"https://api.github.com/repos/{REPO}/releases/latest"
 RELEASES_PAGE = f"https://github.com/{REPO}/releases"
@@ -361,7 +361,7 @@ set /a tries=0
 set /a tries+=1
 move /y "%NEW%" "%OLD%" >nul 2>&1
 if not errorlevel 1 goto swapped
-if %tries% GEQ 120 goto failed
+if %tries% GEQ 60 goto failed
 ping -n 2 127.0.0.1 >nul
 goto retry
 :failed
@@ -458,6 +458,75 @@ def apply_update_zip(zip_path, current_exe):
         shutil.rmtree(extract_dir, ignore_errors=True)
         return None
     return helper
+
+
+def _is_onedir_install():
+    """True neu app dang chay la ban onedir: co thu muc _internal canh
+    file exe, tuc thu muc app la cua rieng app, doi ten duoc."""
+    if not getattr(sys, "frozen", False):
+        return False
+    return os.path.isdir(os.path.join(APP_DIR, "_internal"))
+
+
+def _get_install_dir():
+    """Thu muc cai dat chuan cho ban onedir."""
+    local_app = os.environ.get("LOCALAPPDATA") or os.path.join(
+        os.path.expanduser("~"), "AppData", "Local")
+    return os.path.join(local_app, "AutoClickTool")
+
+
+def apply_update_install(zip_path, current_exe):
+    """Cai ban onedir moi vao %LOCALAPPDATA%\\AutoClickTool, dung khi app
+    dang chay la ban 1 file nam le trong thu muc chung (Downloads,
+    Desktop...): khong the doi ten ca thu muc do de doi thu muc app,
+    nen cai moi vao thu muc rieng thay vi doi. Mang config theo, mo
+    exe moi len. File exe cu nam yen cho cu (xoa tay neu muon). Tra ve
+    duong dan exe moi, hoac None khi loi (ban cu van chay binh thuong)."""
+    if not os.path.isfile(zip_path) or not os.path.isfile(current_exe):
+        return None
+    extract_dir = tempfile.mkdtemp(prefix="autoclicktool_new_")
+    try:
+        with zipfile.ZipFile(zip_path, "r") as zf:
+            zf.extractall(extract_dir)
+    except (zipfile.BadZipFile, OSError):
+        shutil.rmtree(extract_dir, ignore_errors=True)
+        return None
+    new_exe = _find_new_exe(extract_dir)
+    if not new_exe:
+        shutil.rmtree(extract_dir, ignore_errors=True)
+        return None
+    new_dir = os.path.dirname(new_exe)
+    target = _get_install_dir()
+    try:
+        if os.path.isdir(target):
+            # Da co ban cai o day: doi ten truoc (exe dang chay khong
+            # nam trong thu muc nay vi no la ban 1 file o cho khac).
+            if os.path.isdir(target + ".old"):
+                shutil.rmtree(target + ".old", ignore_errors=True)
+            os.rename(target, target + ".old")
+        shutil.move(new_dir, target)
+        if os.path.isfile(CONFIG_FILE):
+            shutil.copy2(CONFIG_FILE,
+                         os.path.join(target, "AutoClickTool_config.json"))
+    except OSError:
+        shutil.rmtree(extract_dir, ignore_errors=True)
+        return None
+    shutil.rmtree(extract_dir, ignore_errors=True)
+    new_exe_path = os.path.join(target, "AutoClickTool.exe")
+    if not os.path.isfile(new_exe_path):
+        return None
+    flags = 0
+    for name in ("CREATE_NO_WINDOW", "CREATE_NEW_PROCESS_GROUP"):
+        flags |= getattr(subprocess, name, 0)
+    try:
+        subprocess.Popen(
+            [new_exe_path], creationflags=flags,
+            stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL, close_fds=True,
+        )
+    except OSError:
+        return None
+    return new_exe_path
 
 
 def apply_update(new_exe, current_exe):
@@ -1289,12 +1358,21 @@ class MacroTool(ctk.CTk):
             self.update_status("Tải bản mới thất bại, thử lại sau.", "red")
             return
         if kind == "zip":
-            ok = apply_update_zip(path, sys.executable) is not None
+            # Ban onedir thi doi thu muc app; ban 1 file thi cai moi vao
+            # thu muc rieng (xem apply_update_install).
+            if _is_onedir_install():
+                ok = apply_update_zip(path, sys.executable) is not None
+            else:
+                ok = apply_update_install(path, sys.executable) is not None
         else:
             ok = apply_update(path, sys.executable) is not None
         if not ok:
             self.update_status("Không cài đặt được bản mới.", "red")
             return
+        # Dung tray icon + listener truoc khi thoat de tien trinh tat han,
+        # script doi thu muc moi doi ten duoc ngay.
+        self._stop_tray()
+        self._stop_listeners()
         self.update_status(f"Đã tải {tag}, đang khởi động lại...", "green")
         self.after(500, self.destroy)
 
