@@ -23,6 +23,20 @@ Thay doi chinh so voi ban goc (1.0.x):
   diem di chuyen o giua, Paint noi 2 dau mut bang 1 duong thang.
   Sua: doc tuy chon ghi o luong UI truoc khi bat dau ghi, luu vao
   bien bool thuong, listener chi doc bien thuong do.
+
+1.1.2: sua that su loi net cong thanh net thang (file test.json cua
+  Bach chung minh ghi da dung: 1 lan keo dai 2.02 giay, 112 diem di
+  chuyen, duong di 1340px nhung diem dau-cuoi chi cach nhau 30px).
+  Nguyen nhan nam o luc CHAY: _play_one dung mouse_ctrl.position
+  de di chuyen chuot - tren Windows pynput cai nay bang SetCursorPos,
+  chi doi vi tri con tro hien thi chu khong dua su kien keo (pointer/
+  drag input) vao hang doi cua ung dung, nen Paint moi chi thay
+  nhan xuong o diem dau va nha ra o diem cuoi roi noi thang 2 diem.
+  Sua: luc chay ghi nho vi tri cuoi, di chuyen bang mouse_ctrl.move
+  (dx, dy) tuong doi - pynput cai nay bang SendInput nen moi buoc
+  di chuyen deu la su kien nhap that, Paint ve duoc net cong.
+  Chi lan dinh vi dau tien cua moi vong moi dung position (dich
+  chuyen nhanh khi chua nhan chuot).
 """
 import ctypes
 import json
@@ -55,7 +69,7 @@ except Exception:
 ctk.set_appearance_mode("System")
 ctk.set_default_color_theme("blue")
 
-VERSION = "1.1.1"
+VERSION = "1.1.2"
 REPO = "btanh258/AutoClickTool"
 RELEASES_API = f"https://api.github.com/repos/{REPO}/releases/latest"
 RELEASES_PAGE = f"https://github.com/{REPO}/releases"
@@ -313,6 +327,9 @@ class MacroTool(ctk.CTk):
         # Event dung de ngat giac ngu: F11 / nut Dung chi can set() la
         # vong lap chay dung ngay, khong phai doi het time.sleep().
         self._stop_event = threading.Event()
+        # Vi tri chuot cuoi cung luc CHAY (de di chuyen tuong doi bang
+        # SendInput, xem _move_mouse_to). Reset moi vong chay.
+        self._play_last_pos = None
 
         self.mouse_listener = None
         self.keyboard_listener = None
@@ -825,6 +842,7 @@ class MacroTool(ctk.CTk):
                 self.update_status(f"Đang chạy vòng {loop_no}/{total}... (F11 để dừng)",
                                    "green")
                 prev_timestamp = 0
+                self._play_last_pos = None
                 stopped = False
                 for event in self.events:
                     if self._stop_event.is_set():
@@ -865,6 +883,28 @@ class MacroTool(ctk.CTk):
         self._stop_tray()
         self.show_window_normal()
 
+    def _move_mouse_to(self, mouse_ctrl, x, y):
+        """Di chuyen chuot toi (x, y) luc CHAY.
+
+        Lan dau tien cua moi vong: dung .position (SetCursorPos) de
+        dich chuyen nhanh toi diem bat dau. Cac lan sau: dung .move
+        (dx, dy) tuong doi - tren Windows pynput cai nay bang SendInput
+        nen moi buoc deu la su kien nhap that. Dung .position cho moi
+        buoc thi Paint chi thay nhan/nha chuot o 2 dau mut va noi
+        thang chung lai, khong ve duoc net cong.
+        """
+        last = getattr(self, '_play_last_pos', None)
+        if last is None:
+            mouse_ctrl.position = (x, y)
+        else:
+            dx, dy = x - last[0], y - last[1]
+            if dx or dy:
+                try:
+                    mouse_ctrl.move(dx, dy)
+                except Exception:
+                    mouse_ctrl.position = (x, y)
+        self._play_last_pos = (x, y)
+
     def _play_one(self, mouse_ctrl, keyboard_ctrl, action, data):
         if action in ('key_press', 'key_release'):
             key_obj = self._parse_key(data)
@@ -876,7 +916,7 @@ class MacroTool(ctk.CTk):
                 keyboard_ctrl.release(key_obj)
         elif action in ('mouse_down', 'mouse_up'):
             x, y, btn_str = data
-            mouse_ctrl.position = (x, y)
+            self._move_mouse_to(mouse_ctrl, x, y)
             btn_obj = mouse.Button.left
             try:
                 btn_obj = getattr(mouse.Button, btn_str.split('.')[1],
@@ -889,10 +929,10 @@ class MacroTool(ctk.CTk):
                 mouse_ctrl.release(btn_obj)
         elif action == 'mouse_move':
             x, y = data
-            mouse_ctrl.position = (x, y)
+            self._move_mouse_to(mouse_ctrl, x, y)
         elif action == 'mouse_scroll':
             x, y, dx, dy = data
-            mouse_ctrl.position = (x, y)
+            self._move_mouse_to(mouse_ctrl, x, y)
             mouse_ctrl.scroll(dx, dy)
 
     def _parse_key(self, data):

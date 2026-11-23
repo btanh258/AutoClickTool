@@ -28,7 +28,7 @@ Chạy `Install_AutoClickTool.bat` (cài Python 3.11 nếu chưa có + các thư
 python AutoClickTool.pyw
 ```
 
-Muốn file exe duy nhất, chạy `Build_AutoClickTool.bat` (dùng PyInstaller, file ra ở `dist\AutoClickTool.exe`, kèm zip `AutoClickTool-1.1.1.zip`).
+Muốn file exe duy nhất, chạy `Build_AutoClickTool.bat` (dùng PyInstaller, file ra ở `dist\AutoClickTool.exe`, kèm zip `AutoClickTool-1.1.2.zip`).
 
 ### Build tự động bằng GitHub Actions
 
@@ -55,6 +55,9 @@ Mỗi hành động là `[tên, dữ liệu, thời gian_giây_tính_từ_lúc_b
 | `mouse_scroll` | `[x, y, dx, dy]` |
 
 ## Lịch sử
+
+### 1.1.2 (2026-11-23)
+- Sửa thật sự lỗi vẽ nét cong thành nét thẳng trong Paint. File `test.json` của Bạch chứng minh lúc ghi đã đúng: 1 lần kéo dài 2,02 giây, 112 điểm di chuyển, đường đi 1340px nhưng điểm đầu-cuối chỉ cách nhau 30px. Lỗi nằm ở lúc chạy: `_play_one` dùng `mouse_ctrl.position` để di chuyển chuột — trên Windows pynput cài này bằng `SetCursorPos`, chỉ đổi vị trí con trỏ hiển thị chứ không đưa sự kiện kéo vào hàng đợi của ứng dụng, nên Paint chỉ thấy nhấn xuống ở điểm đầu và nhả ra ở điểm cuối rồi nối thẳng 2 điểm. Nay lúc chạy ghi nhớ vị trí cuối, di chuyển bằng `mouse_ctrl.move(dx, dy)` tương đối (pynput cài bằng `SendInput`) nên mỗi bước đều là sự kiện nhập thật, Paint vẽ được nét cong. Chỉ lần định vị đầu tiên của mỗi vòng mới dùng `position` để dịch chuyển nhanh.
 
 ### 1.1.1 (2026-11-23)
 - Sửa lỗi vẽ nét cong thành nét thẳng trong Paint: `on_move`/`on_scroll` gọi `BooleanVar.get()` của Tkinter ngay trong thread của pynput — Tkinter chỉ cho đọc biến từ luồng UI chính nên pynput ngừng gọi `on_move`, chỉ còn lại `mouse_down`/`mouse_up` (2 đầu mút) nên Paint nối thành đường thẳng. Nay đọc tùy chọn ghi ở luồng UI trước khi ghi, lưu vào biến bool thường, listener chỉ đọc biến thường đó; bọc mọi callback listener trong `try/except` để một lỗi không giết listener. Dừng ghi giờ hiện số lượng từng loại: di chuyển / click / cuộn / phím, để kiểm tra ngay là đã ghi được điểm di chuyển chưa.
