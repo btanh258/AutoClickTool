@@ -3,9 +3,14 @@
 # Vi PyInstaller chi build duoc cho dung he dieu hanh no dang chay, nen
 # khong the build exe Windows tren may Linux - workflow nay lam viec do:
 # moi lan push tag vX.Y.Z (vd v1.1.1), hoac bam Run workflow o tab Actions,
-# GitHub se build tren windows-latest roi gan AutoClickTool.exe (+ zip)
-# vao release cua tag do. Tu do tinh nang tu cap nhat trong app moi tim
-# thay file exe de tai ve.
+# GitHub se build tren windows-latest roi gan 2 file vao release cua tag do:
+#   * AutoClickTool-v<tag>.zip: thu muc app onedir (dang chinh tu 1.1.6).
+#     DLL nam canh exe trong thu muc app, khong con giai nen ra %TEMP%_MEI*
+#     nen het loi DLL sau cap nhat. Updater tu 1.1.6 tai file zip nay.
+#   * AutoClickTool.exe: exe onefile lam cau noi, de updater cua ban cu
+#     (1.1.5, chi biet tai file exe) van cap nhat len duoc 1.1.6.
+# KHONG chay thu exe moi vua build: chay file vua tai/build ngay luc
+# Defender dang quet no cung gay loi DLL (bai hoc tu YouTube Downloader).
 name: Build exe
 
 on:
@@ -39,19 +44,23 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install customtkinter pynput pystray pillow pyinstaller
 
-      - name: Build exe
-        run: python -m PyInstaller --noconfirm --clean AutoClickTool.spec
+      - name: Build exe (onedir + cau noi onefile)
+        run: |
+          python -m PyInstaller --noconfirm --clean --onefile --windowed --name AutoClickTool --icon icon_AutoClickTool.ico --add-data "icon_AutoClickTool.ico;." --hidden-import pynput.keyboard._win32 --hidden-import pynput.mouse._win32 --hidden-import pystray._win32 AutoClickTool.pyw
+          Move-Item dist\AutoClickTool.exe .\AutoClickTool-bridge.exe
+          python -m PyInstaller --noconfirm --clean AutoClickTool.spec
+          Move-Item .\AutoClickTool-bridge.exe dist\AutoClickTool.exe
 
       - name: Kiem tra exe
         run: |
-          Get-Item dist\AutoClickTool.exe | Select-Object Length, FullName
+          Get-Item dist\AutoClickTool\AutoClickTool.exe, dist\AutoClickTool.exe | Select-Object Length, FullName
           python -m py_compile AutoClickTool.pyw
 
-      - name: Dong goi zip
+      - name: Dong goi zip (thu muc app onedir)
         shell: pwsh
         run: |
           if ($env:GITHUB_REF_TYPE -eq 'tag') { $tag = $env:GITHUB_REF_NAME } else { $tag = '${{ inputs.tag }}' }
-          Compress-Archive -Path 'dist\AutoClickTool.exe','README.md' -DestinationPath "AutoClickTool-$tag.zip" -Force
+          Compress-Archive -Path 'dist\AutoClickTool' -DestinationPath "AutoClickTool-$tag.zip" -Force
           Get-Item "AutoClickTool-$tag.zip" | Select-Object Length, FullName
 
       - name: Gan exe + zip vao release
