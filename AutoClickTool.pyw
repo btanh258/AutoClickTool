@@ -37,6 +37,13 @@ Thay doi chinh so voi ban goc (1.0.x):
   di chuyen deu la su kien nhap that, Paint ve duoc net cong.
   Chi lan dinh vi dau tien cua moi vong moi dung position (dich
   chuyen nhanh khi chua nhan chuot).
+
+1.1.3: them thoi gian cho truoc khi chay (mac dinh 3 giay).
+  Nguyen nhan: bam Chay thi app an di ngay va chay luon, nhung luc
+  do chua co cua so nao duoc chon (Paint chua phai cua so truoc) nen
+  thao tac roi vao hu khong - chuot thi van di theo duong cong nhung
+  khong ve duoc gi. Nay sau khi an app se cho 3 giay (ngat duoc bang
+  F11) de bam vao cua so can thao tac (vd Paint) roi macro moi chay.
 """
 import ctypes
 import json
@@ -69,7 +76,7 @@ except Exception:
 ctk.set_appearance_mode("System")
 ctk.set_default_color_theme("blue")
 
-VERSION = "1.1.2"
+VERSION = "1.1.3"
 REPO = "btanh258/AutoClickTool"
 RELEASES_API = f"https://api.github.com/repos/{REPO}/releases/latest"
 RELEASES_PAGE = f"https://github.com/{REPO}/releases"
@@ -355,6 +362,7 @@ class MacroTool(ctk.CTk):
         self.speed_var = ctk.StringVar(value="1x")
         self._cfg_loops = "1"
         self._cfg_delay = "0"
+        self._cfg_pre_delay = "3"
 
         self.load_config()
         self._sync_record_flags()
@@ -391,7 +399,7 @@ class MacroTool(ctk.CTk):
         help_text = (
             "1. Bấm Ghi, thao tác chuột + bàn phím như bình thường, bấm F12 để dừng ghi.\n"
             "2. Bấm \"Lưu kịch bản mới\" để lưu file .json, hoặc bấm \"Chạy kịch bản\" để chạy ngay.\n"
-            "3. Đang chạy bấm F11 (hoặc menu khay -> Dừng chạy) để dừng lại bất cứ lúc nào.\n"
+            "3. Bấm \"Chạy\": app ẩn đi, trong thời gian chờ bạn bấm vào cửa sổ cần thao tác (vd Paint) để chọn nó, hết thời gian chờ macro tự chạy. Đang chạy bấm F11 (hoặc menu khay -> Dừng chạy) để dừng lại bất cứ lúc nào.\n"
             "Ghi được: click chuột, kéo-thả, cuộn chuột, gõ phím, phím tắt (Ctrl+C...).\n"
             "Số vòng 0 = lặp vô hạn. Tắt \"Ghi di chuyển chuột\" nếu chỉ cần click, file sẽ gọn hơn."
         )
@@ -466,6 +474,12 @@ class MacroTool(ctk.CTk):
                                             values=["0.5x", "1x", "2x"], width=80,
                                             command=lambda v: self.save_config())
         self.speed_menu.grid(row=2, column=1, padx=20, pady=8, sticky="e")
+
+        ctk.CTkLabel(frame_settings, text="Chờ trước khi chạy (giây):").grid(
+            row=3, column=0, padx=20, pady=8, sticky="w")
+        self.entry_pre_delay = ctk.CTkEntry(frame_settings, width=80)
+        self.entry_pre_delay.insert(0, self._cfg_pre_delay)
+        self.entry_pre_delay.grid(row=3, column=1, padx=20, pady=8, sticky="e")
 
         # --- CHAY VA LUU ---
         frame_actions = ctk.CTkFrame(self, fg_color="transparent")
@@ -580,6 +594,7 @@ class MacroTool(ctk.CTk):
             self.path_slot_3.set(data.get("path_3", ""))
             self._cfg_loops = str(data.get("loops", "1"))
             self._cfg_delay = str(data.get("delay", "0"))
+            self._cfg_pre_delay = str(data.get("pre_delay", "3"))
             self.speed_var.set(data.get("speed", "1x"))
             self.record_move_var.set(bool(data.get("record_move", True)))
             self.record_scroll_var.set(bool(data.get("record_scroll", True)))
@@ -591,14 +606,15 @@ class MacroTool(ctk.CTk):
         try:
             loops = self.entry_loops.get() if hasattr(self, "entry_loops") else self._cfg_loops
             delay = self.entry_delay.get() if hasattr(self, "entry_delay") else self._cfg_delay
+            pre_delay = self.entry_pre_delay.get() if hasattr(self, "entry_pre_delay") else self._cfg_pre_delay
         except Exception:
-            loops, delay = self._cfg_loops, self._cfg_delay
+            loops, delay, pre_delay = self._cfg_loops, self._cfg_delay, self._cfg_pre_delay
         try:
             data = {
                 "name_1": self.name_slot_1.get(), "path_1": self.path_slot_1.get(),
                 "name_2": self.name_slot_2.get(), "path_2": self.path_slot_2.get(),
                 "name_3": self.name_slot_3.get(), "path_3": self.path_slot_3.get(),
-                "loops": loops, "delay": delay, "speed": self.speed_var.get(),
+                "loops": loops, "delay": delay, "pre_delay": pre_delay, "speed": self.speed_var.get(),
                 "record_move": self.record_move_var.get(),
                 "record_scroll": self.record_scroll_var.get(),
                 "auto_update": self.auto_update_var.get(),
@@ -772,8 +788,10 @@ class MacroTool(ctk.CTk):
 
     # ---------------- CHAY ----------------
     def _parse_play_settings(self):
-        """Doc loops/delay/speed TREN LUONG UI, tra ve (loops, delay, speed)
-        hoac (None, loi). loops=0 nghia la vo han; delay am la loi."""
+        """Doc loops/delay/speed/pre_delay TREN LUONG UI, tra ve
+        (loops, delay, speed, pre_delay) hoac (None, loi). loops=0
+        nghia la vo han; delay am la loi; pre_delay la thoi gian cho
+        sau khi an app de bam vao cua so dich truoc khi chay."""
         try:
             loops = int(self.entry_loops.get())
         except (ValueError, TypeError):
@@ -792,7 +810,13 @@ class MacroTool(ctk.CTk):
                 raise ValueError
         except (ValueError, AttributeError):
             speed = 1.0
-        return (loops, delay_loops, speed), ""
+        try:
+            pre_delay = float(self.entry_pre_delay.get())
+            if pre_delay < 0:
+                raise ValueError
+        except (ValueError, AttributeError):
+            pre_delay = 3.0
+        return (loops, delay_loops, speed, pre_delay), ""
 
     def start_playing(self):
         if not self.events:
@@ -804,14 +828,14 @@ class MacroTool(ctk.CTk):
         if settings is None:
             self.update_status(error, "red")
             return
-        loops, delay_loops, speed = settings
+        loops, delay_loops, speed, pre_delay = settings
         self.save_config()
         self._stop_event.clear()
         self.is_playing = True
         self.withdraw()
         self.show_tray()
         threading.Thread(target=self.play_macro,
-                         args=(loops, delay_loops, speed),
+                         args=(loops, delay_loops, speed, pre_delay),
                          daemon=True).start()
 
     def _sleep_interruptible(self, seconds):
@@ -821,7 +845,7 @@ class MacroTool(ctk.CTk):
             return not self._stop_event.is_set()
         return not self._stop_event.wait(timeout=seconds)
 
-    def play_macro(self, loops, delay_loops, speed):
+    def play_macro(self, loops, delay_loops, speed, pre_delay=3.0):
         def on_press_play(key):
             if key == keyboard.Key.f11:
                 self._stop_event.set()
@@ -833,6 +857,15 @@ class MacroTool(ctk.CTk):
         try:
             mouse_ctrl = mouse.Controller()
             keyboard_ctrl = keyboard.Controller()
+            if pre_delay and pre_delay > 0:
+                # App vua an: cho nguoi dung bam vao cua so can thao
+                # tac (vd Paint) de chon no, roi macro moi chay.
+                # Ngat duoc ngay bang F11.
+                self.update_status(
+                    f"Sẽ chạy sau {pre_delay:g} giây - bấm vào cửa sổ cần thao tác (vd Paint)...",
+                    "green")
+                if not self._sleep_interruptible(pre_delay):
+                    return
             loop_no = 0
             while not self._stop_event.is_set():
                 if loops != 0 and loop_no >= loops:
