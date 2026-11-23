@@ -28,7 +28,7 @@ Chạy `Install_AutoClickTool.bat` (cài Python 3.11 nếu chưa có + các thư
 python AutoClickTool.pyw
 ```
 
-Muốn file exe duy nhất, chạy `Build_AutoClickTool.bat` (dùng PyInstaller, file ra ở `dist\AutoClickTool.exe`, kèm zip `AutoClickTool-1.1.5.zip`).
+Muốn file exe, chạy `Build_AutoClickTool.bat` (dùng PyInstaller onedir, file ra ở `dist\AutoClickTool\AutoClickTool.exe`, kèm zip `AutoClickTool-v1.1.6.zip` chứa cả thư mục app). Tải zip về, giải nén, chạy file exe trong thư mục `AutoClickTool` — không cần cài thêm gì.
 
 ### Build tự động bằng GitHub Actions
 
@@ -55,6 +55,10 @@ Mỗi hành động là `[tên, dữ liệu, thời gian_giây_tính_từ_lúc_b
 | `mouse_scroll` | `[x, y, dx, dy]` |
 
 ## Lịch sử
+
+### 1.1.6 (2026-11-24)
+- Sửa triệt để lỗi DLL sau khi cập nhật (giống YouTube Downloader): đổi đóng gói từ onefile sang onedir — `python311.dll` + các DLL nằm cạnh exe trong thư mục app, không còn bước giải nén ra `%TEMP%\_MEI*` mỗi lần mở app nên Defender không chặn được `LoadLibrary` nữa. Người dùng tải file zip về, giải nén, chạy exe trong thư mục app là xong.
+- Tự cập nhật đổi theo: tải zip bản mới, kiểm tra SHA-256 + kích thước với thông tin asset trên GitHub, mang config sang thư mục mới rồi đổi cả thư mục app (thư mục cũ đổi tên `.old`, app mở lên được sẽ tự xóa); không chạy thử exe mới nữa (chạy file vừa tải về ngay lúc Defender đang quét nó cũng gây lỗi DLL). Release vẫn kèm 1 file exe onefile làm cầu nối để updater của 1.1.5 (chỉ biết tải file exe) vẫn cập nhật lên được 1.1.6; từ 1.1.6 trở đi updater tải zip.
 
 ### 1.1.5 (2026-11-23)
 - Di chuyển chuột bằng `SendInput` TUYỆT ĐỐI (`MOUSEEVENTF_MOVE | MOUSEEVENTF_ABSOLUTE`, tọa độ chuẩn hóa 0-65535 theo màn hình ảo) thay cho tương đối. Di chuyển tương đối bị Windows co giãn theo mức tốc độ con trỏ / tăng tốc (Enhance pointer precision) nên điểm click lệch sang trái rất lớn; tuyệt đối thì chính xác tuyệt đối, không phụ thuộc cài đặt chuột. Chỉ khi `SendInput` tuyệt đối lỗi mới rơi về tương đối, rồi về `SetCursorPos`.

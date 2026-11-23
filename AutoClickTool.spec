@@ -17,12 +17,14 @@ a = Analysis(
 )
 pyz = PYZ(a.pure)
 
+# 1.1.6: onedir (khong onefile nua) - python311.dll + cac DLL nam canh
+# exe trong thu muc app, khong con buoc giai nen ra %TEMP%\_MEI* moi lan
+# mo app, nen Defender khong chan duoc LoadLibrary sau khi cap nhat.
 exe = EXE(
     pyz,
     a.scripts,
-    a.binaries,
-    a.datas,
     [],
+    exclude_binaries=True,
     name='AutoClickTool',
     debug=False,
     bootloader_ignore_signals=False,
@@ -37,4 +39,14 @@ exe = EXE(
     codesign_identity=None,
     entitlements_file=None,
     icon=['icon_AutoClickTool.ico'],
+)
+
+coll = COLLECT(
+    exe,
+    a.binaries,
+    a.datas,
+    strip=False,
+    upx=True,
+    upx_exclude=[],
+    name='AutoClickTool',
 )

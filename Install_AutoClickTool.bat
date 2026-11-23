@@ -3,7 +3,7 @@ chcp 65001 >nul
 setlocal enabledelayedexpansion
 
 echo ==========================================
-echo         CAI DAT AUTOCLICK TOOL 1.1.5
+echo         CAI DAT AUTOCLICK TOOL 1.1.6
 echo ==========================================
 echo.
 

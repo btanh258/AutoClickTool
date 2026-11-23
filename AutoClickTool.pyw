@@ -45,13 +45,16 @@ Thay doi chinh so voi ban goc (1.0.x):
   F11) de bam vao cua so can thao tac (vd Paint) roi macro moi chay.
 """
 import ctypes
+import hashlib
 import json
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
 import threading
 import time
+import zipfile
 import urllib.error
 import urllib.request
 import webbrowser
@@ -75,7 +78,7 @@ except Exception:
 ctk.set_appearance_mode("System")
 ctk.set_default_color_theme("blue")
 
-VERSION = "1.1.5"
+VERSION = "1.1.6"
 REPO = "btanh258/AutoClickTool"
 RELEASES_API = f"https://api.github.com/repos/{REPO}/releases/latest"
 RELEASES_PAGE = f"https://github.com/{REPO}/releases"
@@ -91,6 +94,19 @@ def get_app_dir():
 
 APP_DIR = get_app_dir()
 CONFIG_FILE = os.path.join(APP_DIR, "AutoClickTool_config.json")
+
+
+def _cleanup_old_app_dir():
+    """Xoa thu muc app cu (.old) sau khi cap nhat doi thu muc: app moi
+    da mo len duoc thi thu muc cu khong con ai dung nua."""
+    if not getattr(sys, "frozen", False):
+        return
+    old_dir = APP_DIR + ".old"
+    if os.path.isdir(old_dir):
+        shutil.rmtree(old_dir, ignore_errors=True)
+
+
+_cleanup_old_app_dir()
 # Ban cu luu config theo thu muc hien tai: doc thu de chuyen sang cho moi.
 LEGACY_CONFIG_FILE = os.path.join(os.getcwd(), "AutoClickTool_config.json")
 
@@ -230,15 +246,29 @@ def fetch_latest_release_detailed(timeout=8):
         "name": payload.get("name") or "",
         "assets": [
             {"name": a.get("name") or "", "url": a.get("browser_download_url") or "",
-             "size": a.get("size") or 0}
+             "size": a.get("size") or 0, "digest": a.get("digest") or ""}
             for a in (payload.get("assets") or []) if isinstance(a, dict)
         ],
     }, "ok"
 
+def _asset_info(asset):
+    return {"url": asset.get("url") or "",
+            "size": asset.get("size") or 0,
+            "digest": asset.get("digest") or ""}
+
+
 def pick_update_asset(release):
+    """Chon file cap nhat, tra ve dict {url, kind, size, digest} hoac None.
+
+    Uu tien file zip onedir (AutoClickTool-v<tag>.zip): DLL nam canh exe
+    trong thu muc app nen khong con loi DLL sau cap nhat. Chi khi
+    release khong co zip moi roi ve file exe onefile (cau noi cho cac
+    ban cu chi biet tai exe)."""
     if not isinstance(release, dict):
         return None
-    fallback = None
+    tag = (release.get("tag") or "").strip()
+    zip_name = ("AutoClickTool-%s.zip" % tag).lower() if tag else ""
+    exe_fallback = None
     for asset in release.get("assets") or []:
         if not isinstance(asset, dict):
             continue
@@ -246,15 +276,32 @@ def pick_update_asset(release):
         if not url:
             continue
         name = (asset.get("name") or "").lower()
+        if zip_name and name == zip_name:
+            info = _asset_info(asset)
+            info["kind"] = "zip"
+            return info
         if name == UPDATE_ASSET_NAME.lower():
-            return url
-        if fallback is None and name.endswith(".exe"):
-            fallback = url
-    return fallback
+            exe_fallback = _asset_info(asset)
+            exe_fallback["kind"] = "exe"
+        elif exe_fallback is None and name.endswith(".exe"):
+            exe_fallback = _asset_info(asset)
+            exe_fallback["kind"] = "exe"
+    return exe_fallback
 
-def download_asset(url, destination, timeout=60, progress=None):
+def _sha256_file(path):
+    digest = hashlib.sha256()
+    with open(path, "rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def download_asset(url, destination, timeout=60, progress=None,
+                   expected_size=0, expected_digest=""):
     """Tai ve file tam *.part roi doi ten: tai do khong bao gio de lai
-    file exe dut doan. Tra ve duong dan, hoac None khi loi."""
+    file exe dut doan. Kiem tra kich thuoc + SHA-256 voi thong tin asset
+    tren GitHub (neu co): file sai thi xoa, tra ve None. Tra ve duong
+    dan khi tai dung, hoac None khi loi."""
     if not url:
         return None
     destination = os.fspath(destination)
@@ -283,9 +330,18 @@ def download_asset(url, destination, timeout=60, progress=None):
             pass
         return None
     try:
-        if os.path.getsize(partial) <= 0:
+        size = os.path.getsize(partial)
+        if size <= 0:
             os.remove(partial)
             return None
+        if expected_size and size != expected_size:
+            os.remove(partial)
+            return None
+        if expected_digest:
+            want = expected_digest.split(":", 1)[-1].strip().lower()
+            if want and _sha256_file(partial) != want:
+                os.remove(partial)
+                return None
         os.replace(partial, destination)
     except OSError:
         try:
@@ -317,6 +373,91 @@ start "" "%OLD%"
 del "%~f0" >nul 2>&1
 exit /b 0
 """
+
+_UPDATE_ZIP_SCRIPT = r"""@echo off
+setlocal
+set "OLD_DIR={old_dir}"
+set "NEW_DIR={new_dir}"
+set "EXE_NAME=AutoClickTool.exe"
+rmdir /s /q "%OLD_DIR%.old" >nul 2>&1
+set /a tries=0
+:retry
+set /a tries+=1
+move /y "%OLD_DIR%" "%OLD_DIR%.old" >nul 2>&1
+if not errorlevel 1 goto swapped
+if %tries% GEQ 120 goto failed
+ping -n 2 127.0.0.1 >nul
+goto retry
+:failed
+start "" "%OLD_DIR%\%EXE_NAME%"
+del "%~f0" >nul 2>&1
+exit /b 1
+:swapped
+robocopy "%NEW_DIR%" "%OLD_DIR%" /E /MOVE >nul 2>&1
+rmdir "%NEW_DIR%" >nul 2>&1
+start "" "%OLD_DIR%\%EXE_NAME%"
+del "%~f0" >nul 2>&1
+exit /b 0
+"""
+
+
+def _find_new_exe(extract_dir):
+    """Tim AutoClickTool.exe trong thu muc vua giai nen zip onedir."""
+    for root, _dirs, files in os.walk(extract_dir):
+        if "AutoClickTool.exe" in files:
+            return os.path.join(root, "AutoClickTool.exe")
+    return None
+
+
+def apply_update_zip(zip_path, current_exe):
+    """Cap nhat bang zip onedir: giai nen, mang config sang thu muc moi,
+    doi ca thu muc app qua script phu (Windows khong cho doi ten thu muc
+    dang co exe chay). KHONG chay thu exe moi: chay file vua tai ve
+    ngay luc Defender dang quet no cung gay loi DLL. Tra ve duong dan
+    script, hoac None."""
+    current_exe = os.path.abspath(current_exe)
+    app_dir = os.path.dirname(current_exe)
+    if not os.path.isfile(zip_path) or not os.path.isfile(current_exe):
+        return None
+    extract_dir = tempfile.mkdtemp(prefix="autoclicktool_new_")
+    try:
+        with zipfile.ZipFile(zip_path, "r") as zf:
+            zf.extractall(extract_dir)
+    except (zipfile.BadZipFile, OSError):
+        shutil.rmtree(extract_dir, ignore_errors=True)
+        return None
+    new_exe = _find_new_exe(extract_dir)
+    if not new_exe:
+        shutil.rmtree(extract_dir, ignore_errors=True)
+        return None
+    new_dir = os.path.dirname(new_exe)
+    # Mang config sang thu muc moi truoc khi doi (app dang chay van ghi duoc).
+    try:
+        if os.path.isfile(CONFIG_FILE):
+            shutil.copy2(CONFIG_FILE, os.path.join(new_dir, "AutoClickTool_config.json"))
+    except OSError:
+        pass
+    helper = os.path.join(tempfile.gettempdir(), "autoclicktool_update.bat")
+    try:
+        with open(helper, "w", encoding="utf-8", newline="\r\n") as handle:
+            handle.write(_UPDATE_ZIP_SCRIPT.format(old_dir=app_dir, new_dir=new_dir))
+    except OSError:
+        shutil.rmtree(extract_dir, ignore_errors=True)
+        return None
+    flags = 0
+    for name in ("CREATE_NO_WINDOW", "CREATE_NEW_PROCESS_GROUP"):
+        flags |= getattr(subprocess, name, 0)
+    try:
+        subprocess.Popen(
+            ["cmd", "/c", helper], creationflags=flags,
+            stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL, close_fds=True,
+        )
+    except OSError:
+        shutil.rmtree(extract_dir, ignore_errors=True)
+        return None
+    return helper
+
 
 def apply_update(new_exe, current_exe):
     """Doi file exe dang chay bang file moi qua script phu (Windows khong
@@ -1117,24 +1258,33 @@ class MacroTool(ctk.CTk):
             self.update_status(f"Bản mới {tag} - mở trang tải về...", "green")
             webbrowser.open(release.get("url") or RELEASES_PAGE)
             return
-        url = pick_update_asset(release)
-        if not url:
-            self.update_status(f"Bản {tag} chưa có file exe, mở trang tải về...",
+        asset = pick_update_asset(release)
+        if not asset:
+            self.update_status(f"Bản {tag} chưa có file cập nhật, mở trang tải về...",
                                "red")
             webbrowser.open(release.get("url") or RELEASES_PAGE)
             return
         self.update_status(f"Đang tải bản {tag}...", "green")
+        kind = asset.get("kind") or "exe"
+        filename = ("AutoClickTool_new.zip" if kind == "zip"
+                    else "AutoClickTool_new.exe")
         def run_download():
-            dest = os.path.join(tempfile.gettempdir(), "AutoClickTool_new.exe")
-            path = download_asset(url, dest)
-            self.after(0, lambda: self._on_download_done(path, tag))
+            dest = os.path.join(tempfile.gettempdir(), filename)
+            path = download_asset(asset.get("url") or "", dest,
+                                  expected_size=asset.get("size") or 0,
+                                  expected_digest=asset.get("digest") or "")
+            self.after(0, lambda: self._on_download_done(path, tag, kind))
         threading.Thread(target=run_download, daemon=True).start()
 
-    def _on_download_done(self, path, tag):
+    def _on_download_done(self, path, tag, kind="exe"):
         if not path:
             self.update_status("Tải bản mới thất bại, thử lại sau.", "red")
             return
-        if apply_update(path, sys.executable) is None:
+        if kind == "zip":
+            ok = apply_update_zip(path, sys.executable) is not None
+        else:
+            ok = apply_update(path, sys.executable) is not None
+        if not ok:
             self.update_status("Không cài đặt được bản mới.", "red")
             return
         self.update_status(f"Đã tải {tag}, đang khởi động lại...", "green")
