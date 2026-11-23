@@ -75,7 +75,7 @@ except Exception:
 ctk.set_appearance_mode("System")
 ctk.set_default_color_theme("blue")
 
-VERSION = "1.1.4"
+VERSION = "1.1.5"
 REPO = "btanh258/AutoClickTool"
 RELEASES_API = f"https://api.github.com/repos/{REPO}/releases/latest"
 RELEASES_PAGE = f"https://github.com/{REPO}/releases"
@@ -130,36 +130,73 @@ def is_newer(latest, current):
     a, b = parse_version(latest), parse_version(current)
     return a is not None and b is not None and a > b
 
-def _send_input_move(dx, dy):
-    """Gui 1 su kien di chuyen chuot (tuong doi) bang SendInput that
-    cua Windows, qua ctypes. Khac voi SetCursorPos (chi doi vi tri
-    con tro hien thi) va khac voi mouse_ctrl.move() cua pynput (tren
-    Windows no cung chi la SetCursorPos - xem ghi chu 1.1.4), SendInput
-    dua su kien vao hang doi nhap nhu chuot that, nen Paint nhan duoc
-    tung diem cua net keo. Tra ve True neu gui duoc, False neu khong
-    phai Windows hoac goi loi (ben goi se roi ve SetCursorPos)."""
-    if not dx and not dy:
-        return True
+class _MOUSEINPUT(ctypes.Structure):
+    _fields_ = [("dx", ctypes.c_long), ("dy", ctypes.c_long),
+                ("mouseData", ctypes.c_ulong),
+                ("dwFlags", ctypes.c_ulong),
+                ("time", ctypes.c_ulong),
+                ("dwExtraInfo", ctypes.c_void_p)]
+
+
+class _INPUT(ctypes.Structure):
+    _fields_ = [("type", ctypes.c_ulong), ("mi", _MOUSEINPUT)]
+
+
+def _send_input(dx, dy, dw_flags):
+    """Gui 1 su kien chuot qua SendInput that cua Windows, qua ctypes.
+    Tra ve True neu gui duoc, False neu khong phai Windows / loi."""
     try:
         import ctypes
         user32 = ctypes.windll.user32
-
-        class MOUSEINPUT(ctypes.Structure):
-            _fields_ = [("dx", ctypes.c_long), ("dy", ctypes.c_long),
-                        ("mouseData", ctypes.c_ulong),
-                        ("dwFlags", ctypes.c_ulong),
-                        ("time", ctypes.c_ulong),
-                        ("dwExtraInfo", ctypes.c_void_p)]
-
-        class INPUT(ctypes.Structure):
-            _fields_ = [("type", ctypes.c_ulong), ("mi", MOUSEINPUT)]
-
-        MOUSEEVENTF_MOVE = 0x0001
-        inp = INPUT(type=0, mi=MOUSEINPUT(dx=int(dx), dy=int(dy),
-                    mouseData=0, dwFlags=MOUSEEVENTF_MOVE,
-                    time=0, dwExtraInfo=None))
+        inp = _INPUT(type=0, mi=_MOUSEINPUT(dx=int(dx), dy=int(dy),
+                     mouseData=0, dwFlags=dw_flags,
+                     time=0, dwExtraInfo=None))
         return user32.SendInput(1, ctypes.byref(inp),
                                 ctypes.sizeof(inp)) == 1
+    except Exception:
+        return False
+
+
+def _send_input_move(dx, dy):
+    """Gui 1 su kien di chuyen chuot TUONG DOI bang SendInput that.
+    Chi dung lam du phong khi SendInput tuyet doi loi, vi di chuyen
+    tuong doi bi Windows co gian theo toc do con tro / tang toc."""
+    if not dx and not dy:
+        return True
+    return _send_input(dx, dy, 0x0001)  # MOUSEEVENTF_MOVE
+
+
+_VIRTUAL_SCREEN = None
+
+
+def _send_input_move_to(x, y):
+    """Gui 1 su kien di chuyen chuot TUYET DOI bang SendInput that
+    (MOUSEEVENTF_MOVE | MOUSEEVENTF_ABSOLUTE), toa do chuan hoa
+    0-65535 theo man hinh ao. Khac voi SetCursorPos (chi doi vi tri
+    con tro hien thi) va khac voi mouse_ctrl.move() cua pynput (tren
+    Windows no cung chi la SetCursorPos - xem ghi chu 1.1.4), SendInput
+    dua su kien vao hang doi nhap nhu chuot that, nen Paint nhan duoc
+    tung diem cua net keo; va vi la tuyet doi nen khong bi toc do con
+    tro / tang toc cua Windows co gian, diem click chinh xac. Tra ve
+    True neu gui duoc, False neu khong phai Windows hoac goi loi."""
+    global _VIRTUAL_SCREEN
+    try:
+        import ctypes
+        user32 = ctypes.windll.user32
+        if _VIRTUAL_SCREEN is None:
+            vx = user32.GetSystemMetrics(76)  # SM_XVIRTUALSCREEN
+            vy = user32.GetSystemMetrics(77)  # SM_YVIRTUALSCREEN
+            vw = user32.GetSystemMetrics(78)  # SM_CXVIRTUALSCREEN
+            vh = user32.GetSystemMetrics(79)  # SM_CYVIRTUALSCREEN
+            _VIRTUAL_SCREEN = (vx, vy, vw, vh)
+        vx, vy, vw, vh = _VIRTUAL_SCREEN
+        if vw <= 1 or vh <= 1:
+            return False
+        nx = int(round((x - vx) * 65535 / (vw - 1)))
+        ny = int(round((y - vy) * 65535 / (vh - 1)))
+        nx = max(0, min(65535, nx))
+        ny = max(0, min(65535, ny))
+        return _send_input(nx, ny, 0x0001 | 0x8000)  # MOVE | ABSOLUTE
     except Exception:
         return False
 
@@ -348,7 +385,7 @@ class MacroTool(ctk.CTk):
         super().__init__()
 
         self.title(f"AutoClickTool {VERSION}")
-        self.geometry("560x800")
+        self.geometry("560x850")
         self.resizable(False, False)
 
         # Giu tham chieu anh icon: bien cuc bo se bi GC thu hoi lam mat icon.
@@ -952,19 +989,22 @@ class MacroTool(ctk.CTk):
     def _move_mouse_to(self, mouse_ctrl, x, y):
         """Di chuyen chuot toi (x, y) luc CHAY, bang su kien nhap that.
 
-        Dung SendInput (xem _send_input_move) de gui tung buoc di
-        chuyen nhu chuot that - Paint can tung diem giua de ve net.
-        Dung SetCursorPos (mouse_ctrl.position / .move() cua pynput,
-        vi tren Windows move() cung chi la SetCursorPos) thi con tro
-        van chay theo duong cong tren man hinh nhung Paint chi thay
-        nhan/nha chuot o 2 dau mut va noi thang chung lai.
-        Chi khi SendInput khong dung duoc (khong phai Windows, loi)
-        moi roi ve .position.
+        Thu SendInput TUYET DOI truoc (xem _send_input_move_to): moi
+        buoc di chuyen deu la su kien nhap that nhu chuot that - Paint
+        can tung diem giua de ve net - va toa do tuyet doi khong bi
+        toc do con tro / tang toc cua Windows co gian nen diem click
+        chinh xac. Dung SetCursorPos (mouse_ctrl.position / .move()
+        cua pynput, vi tren Windows move() cung chi la SetCursorPos)
+        thi con tro van chay theo duong cong tren man hinh nhung Paint
+        chi thay nhan/nha chuot o 2 dau mut va noi thang chung lai.
+        Chi khi SendInput tuyet doi loi moi roi ve SendInput tuong
+        doi, roi ve .position.
         """
+        if _send_input_move_to(x, y):
+            self._play_last_pos = (x, y)
+            return
         last = getattr(self, '_play_last_pos', None)
         if last is None:
-            # Lan dau cua moi vong: lay vi tri con tro hien tai lam
-            # moc roi gui buoc tuong doi bang SendInput.
             try:
                 cur = mouse_ctrl.position
                 dx, dy = x - cur[0], y - cur[1]
@@ -972,12 +1012,10 @@ class MacroTool(ctk.CTk):
                 mouse_ctrl.position = (x, y)
                 self._play_last_pos = (x, y)
                 return
-            if (dx or dy) and not _send_input_move(dx, dy):
-                mouse_ctrl.position = (x, y)
         else:
             dx, dy = x - last[0], y - last[1]
-            if (dx or dy) and not _send_input_move(dx, dy):
-                mouse_ctrl.position = (x, y)
+        if (dx or dy) and not _send_input_move(dx, dy):
+            mouse_ctrl.position = (x, y)
         self._play_last_pos = (x, y)
 
     def _play_one(self, mouse_ctrl, keyboard_ctrl, action, data):

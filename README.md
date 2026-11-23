@@ -28,7 +28,7 @@ Chạy `Install_AutoClickTool.bat` (cài Python 3.11 nếu chưa có + các thư
 python AutoClickTool.pyw
 ```
 
-Muốn file exe duy nhất, chạy `Build_AutoClickTool.bat` (dùng PyInstaller, file ra ở `dist\AutoClickTool.exe`, kèm zip `AutoClickTool-1.1.4.zip`).
+Muốn file exe duy nhất, chạy `Build_AutoClickTool.bat` (dùng PyInstaller, file ra ở `dist\AutoClickTool.exe`, kèm zip `AutoClickTool-1.1.5.zip`).
 
 ### Build tự động bằng GitHub Actions
 
@@ -55,6 +55,10 @@ Mỗi hành động là `[tên, dữ liệu, thời gian_giây_tính_từ_lúc_b
 | `mouse_scroll` | `[x, y, dx, dy]` |
 
 ## Lịch sử
+
+### 1.1.5 (2026-11-23)
+- Di chuyển chuột bằng `SendInput` TUYỆT ĐỐI (`MOUSEEVENTF_MOVE | MOUSEEVENTF_ABSOLUTE`, tọa độ chuẩn hóa 0-65535 theo màn hình ảo) thay cho tương đối. Di chuyển tương đối bị Windows co giãn theo mức tốc độ con trỏ / tăng tốc (Enhance pointer precision) nên điểm click lệch sang trái rất lớn; tuyệt đối thì chính xác tuyệt đối, không phụ thuộc cài đặt chuột. Chỉ khi `SendInput` tuyệt đối lỗi mới rơi về tương đối, rồi về `SetCursorPos`.
+- Cửa sổ cao 800 -> 850px: thêm 1 hàng cài đặt ở 1.1.3 ("Chờ trước khi chạy") làm nội dung tràn khỏi cửa sổ cố định 800px, nút "Kiểm tra cập nhật" ở dưới cùng bị đẩy ra ngoài khung hình.
 
 ### 1.1.4 (2026-11-23)
 - Sửa thật sự việc Paint không vẽ được nét cong. Đọc source pynput 1.8.2 mới biết: trên Windows, `Controller.move(dx, dy)` chỉ là `self.position = vị trí hiện tại + (dx, dy)`, tức là `SetCursorPos` — chỉ đổi vị trí con trỏ hiển thị, không đưa sự kiện kéo vào hàng đợi nhập. Vì vậy 1.1.2 tưởng đã sửa bằng `mouse.move` nhưng thực ra không đổi gì trên Windows. PowerPoint vẫn quét chọn được vì nó chỉ cần điểm đầu/cuối (hình chữ nhật chọn theo vị trí con trỏ), còn Paint cần từng điểm giữa như sự kiện nhập thật để vẽ nét. Nay lúc chạy gửi di chuyển chuột bằng `SendInput` thật qua `ctypes` (`MOUSEEVENTF_MOVE` tương đối), như cách pynput gửi nhấn/nhả chuột; chỉ khi không phải Windows hoặc `SendInput` lỗi mới rơi về `SetCursorPos`.
