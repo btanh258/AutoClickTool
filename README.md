@@ -28,7 +28,7 @@ Chạy `Install_AutoClickTool.bat` (cài Python 3.11 nếu chưa có + các thư
 python AutoClickTool.pyw
 ```
 
-Muốn file exe, chạy `Build_AutoClickTool.bat` (dùng PyInstaller onedir, file ra ở `dist\AutoClickTool\AutoClickTool.exe`, kèm zip `AutoClickTool-v1.1.6.zip` chứa cả thư mục app). Tải zip về, giải nén, chạy file exe trong thư mục `AutoClickTool` — không cần cài thêm gì.
+Muốn file exe, chạy `Build_AutoClickTool.bat` (dùng PyInstaller onedir, file ra ở `dist\AutoClickTool\AutoClickTool.exe`, kèm zip `AutoClickTool-v1.1.7.zip` chứa cả thư mục app). Tải zip về, giải nén, chạy file exe trong thư mục `AutoClickTool` — không cần cài thêm gì.
 
 ### Build tự động bằng GitHub Actions
 
@@ -55,6 +55,9 @@ Mỗi hành động là `[tên, dữ liệu, thời gian_giây_tính_từ_lúc_b
 | `mouse_scroll` | `[x, y, dx, dy]` |
 
 ## Lịch sử
+
+### 1.1.7 (2026-11-24)
+- Thêm link GitHub bấm được vào khung mô tả trong app (`github.com/btanh258/AutoClickTool`, bấm mở bằng trình duyệt). Cửa sổ cao 850 -> 875px vì thêm 1 dòng mô tả.
 
 ### 1.1.6 (2026-11-24)
 - Sửa triệt để lỗi DLL sau khi cập nhật (giống YouTube Downloader): đổi đóng gói từ onefile sang onedir — `python311.dll` + các DLL nằm cạnh exe trong thư mục app, không còn bước giải nén ra `%TEMP%\_MEI*` mỗi lần mở app nên Defender không chặn được `LoadLibrary` nữa. Người dùng tải file zip về, giải nén, chạy exe trong thư mục app là xong.

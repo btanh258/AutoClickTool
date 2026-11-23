@@ -78,10 +78,11 @@ except Exception:
 ctk.set_appearance_mode("System")
 ctk.set_default_color_theme("blue")
 
-VERSION = "1.1.6"
+VERSION = "1.1.7"
 REPO = "btanh258/AutoClickTool"
 RELEASES_API = f"https://api.github.com/repos/{REPO}/releases/latest"
 RELEASES_PAGE = f"https://github.com/{REPO}/releases"
+REPO_URL = f"https://github.com/{REPO}"
 UPDATE_ASSET_NAME = "AutoClickTool.exe"
 USER_AGENT = "AutoClickTool-update-check"
 
@@ -526,7 +527,7 @@ class MacroTool(ctk.CTk):
         super().__init__()
 
         self.title(f"AutoClickTool {VERSION}")
-        self.geometry("560x850")
+        self.geometry("560x875")
         self.resizable(False, False)
 
         # Giu tham chieu anh icon: bien cuc bo se bi GC thu hoi lam mat icon.
@@ -615,7 +616,14 @@ class MacroTool(ctk.CTk):
             "Số vòng 0 = lặp vô hạn. Tắt \"Ghi di chuyển chuột\" nếu chỉ cần click, file sẽ gọn hơn."
         )
         ctk.CTkLabel(frame_help, text=help_text, font=("Segoe UI", 12),
-                     justify="left", wraplength=500).pack(anchor="w", padx=12, pady=(0, 8))
+                     justify="left", wraplength=500).pack(anchor="w", padx=12, pady=(0, 2))
+        github_label = ctk.CTkLabel(
+            frame_help, text="GitHub: github.com/btanh258/AutoClickTool",
+            font=("Segoe UI", 12, "underline"), text_color="#3B82F6",
+            cursor="hand2")
+        github_label.pack(anchor="w", padx=12, pady=(0, 8))
+        github_label.bind("<Button-1>",
+                          lambda e: webbrowser.open(REPO_URL))
 
         # --- KHU VUC KICH BAN ---
         frame_quick = ctk.CTkFrame(self)
