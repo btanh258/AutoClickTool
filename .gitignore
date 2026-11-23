@@ -1,0 +1,8 @@
+dist/
+build/
+__pycache__/
+*.pyc
+*.part
+AutoClickTool_config.json
+AutoClickTool_new.exe
+autoclicktool_update.bat
