@@ -32,11 +32,10 @@ Thay doi chinh so voi ban goc (1.0.x):
   chi doi vi tri con tro hien thi chu khong dua su kien keo (pointer/
   drag input) vao hang doi cua ung dung, nen Paint moi chi thay
   nhan xuong o diem dau va nha ra o diem cuoi roi noi thang 2 diem.
-  Sua: luc chay ghi nho vi tri cuoi, di chuyen bang mouse_ctrl.move
-  (dx, dy) tuong doi - pynput cai nay bang SendInput nen moi buoc
-  di chuyen deu la su kien nhap that, Paint ve duoc net cong.
-  Chi lan dinh vi dau tien cua moi vong moi dung position (dich
-  chuyen nhanh khi chua nhan chuot).
+  Sua (SAI - xem 1.1.4): luc chay ghi nho vi tri cuoi, di chuyen
+  bang mouse_ctrl.move (dx, dy) tuong doi, tuong la SendInput.
+  Thuc ra khong doi gi tren Windows, vi pynput cai move() bang
+  self.position = vi tri hien tai + (dx, dy), tuc la SetCursorPos.
 
 1.1.3: them thoi gian cho truoc khi chay (mac dinh 3 giay).
   Nguyen nhan: bam Chay thi app an di ngay va chay luon, nhung luc
@@ -76,7 +75,7 @@ except Exception:
 ctk.set_appearance_mode("System")
 ctk.set_default_color_theme("blue")
 
-VERSION = "1.1.3"
+VERSION = "1.1.4"
 REPO = "btanh258/AutoClickTool"
 RELEASES_API = f"https://api.github.com/repos/{REPO}/releases/latest"
 RELEASES_PAGE = f"https://github.com/{REPO}/releases"
@@ -130,6 +129,40 @@ def parse_version(text):
 def is_newer(latest, current):
     a, b = parse_version(latest), parse_version(current)
     return a is not None and b is not None and a > b
+
+def _send_input_move(dx, dy):
+    """Gui 1 su kien di chuyen chuot (tuong doi) bang SendInput that
+    cua Windows, qua ctypes. Khac voi SetCursorPos (chi doi vi tri
+    con tro hien thi) va khac voi mouse_ctrl.move() cua pynput (tren
+    Windows no cung chi la SetCursorPos - xem ghi chu 1.1.4), SendInput
+    dua su kien vao hang doi nhap nhu chuot that, nen Paint nhan duoc
+    tung diem cua net keo. Tra ve True neu gui duoc, False neu khong
+    phai Windows hoac goi loi (ben goi se roi ve SetCursorPos)."""
+    if not dx and not dy:
+        return True
+    try:
+        import ctypes
+        user32 = ctypes.windll.user32
+
+        class MOUSEINPUT(ctypes.Structure):
+            _fields_ = [("dx", ctypes.c_long), ("dy", ctypes.c_long),
+                        ("mouseData", ctypes.c_ulong),
+                        ("dwFlags", ctypes.c_ulong),
+                        ("time", ctypes.c_ulong),
+                        ("dwExtraInfo", ctypes.c_void_p)]
+
+        class INPUT(ctypes.Structure):
+            _fields_ = [("type", ctypes.c_ulong), ("mi", MOUSEINPUT)]
+
+        MOUSEEVENTF_MOVE = 0x0001
+        inp = INPUT(type=0, mi=MOUSEINPUT(dx=int(dx), dy=int(dy),
+                    mouseData=0, dwFlags=MOUSEEVENTF_MOVE,
+                    time=0, dwExtraInfo=None))
+        return user32.SendInput(1, ctypes.byref(inp),
+                                ctypes.sizeof(inp)) == 1
+    except Exception:
+        return False
+
 
 def fetch_latest_release_detailed(timeout=8):
     """Tra ve (release_dict|None, ly_do): ok / not-found / rate-limited /
@@ -917,25 +950,34 @@ class MacroTool(ctk.CTk):
         self.show_window_normal()
 
     def _move_mouse_to(self, mouse_ctrl, x, y):
-        """Di chuyen chuot toi (x, y) luc CHAY.
+        """Di chuyen chuot toi (x, y) luc CHAY, bang su kien nhap that.
 
-        Lan dau tien cua moi vong: dung .position (SetCursorPos) de
-        dich chuyen nhanh toi diem bat dau. Cac lan sau: dung .move
-        (dx, dy) tuong doi - tren Windows pynput cai nay bang SendInput
-        nen moi buoc deu la su kien nhap that. Dung .position cho moi
-        buoc thi Paint chi thay nhan/nha chuot o 2 dau mut va noi
-        thang chung lai, khong ve duoc net cong.
+        Dung SendInput (xem _send_input_move) de gui tung buoc di
+        chuyen nhu chuot that - Paint can tung diem giua de ve net.
+        Dung SetCursorPos (mouse_ctrl.position / .move() cua pynput,
+        vi tren Windows move() cung chi la SetCursorPos) thi con tro
+        van chay theo duong cong tren man hinh nhung Paint chi thay
+        nhan/nha chuot o 2 dau mut va noi thang chung lai.
+        Chi khi SendInput khong dung duoc (khong phai Windows, loi)
+        moi roi ve .position.
         """
         last = getattr(self, '_play_last_pos', None)
         if last is None:
-            mouse_ctrl.position = (x, y)
+            # Lan dau cua moi vong: lay vi tri con tro hien tai lam
+            # moc roi gui buoc tuong doi bang SendInput.
+            try:
+                cur = mouse_ctrl.position
+                dx, dy = x - cur[0], y - cur[1]
+            except Exception:
+                mouse_ctrl.position = (x, y)
+                self._play_last_pos = (x, y)
+                return
+            if (dx or dy) and not _send_input_move(dx, dy):
+                mouse_ctrl.position = (x, y)
         else:
             dx, dy = x - last[0], y - last[1]
-            if dx or dy:
-                try:
-                    mouse_ctrl.move(dx, dy)
-                except Exception:
-                    mouse_ctrl.position = (x, y)
+            if (dx or dy) and not _send_input_move(dx, dy):
+                mouse_ctrl.position = (x, y)
         self._play_last_pos = (x, y)
 
     def _play_one(self, mouse_ctrl, keyboard_ctrl, action, data):
