@@ -14,6 +14,15 @@ Thay doi chinh so voi ban goc (1.0.x):
   * Tu cap nhat qua GitHub Releases (giong ScreenShotTool/TaskbarWidget):
     kiem tra sau 10 giay roi moi ngay, co nut "Kiem tra cap nhat".
   * So vong 0 = lap vo han. Toc do phat 0.5x / 1x / 2x.
+
+1.1.1: sua loi ve net cong thanh net thang khi ve trong Paint.
+  Nguyen nhan: on_move/on_scroll goi BooleanVar.get() cua Tkinter
+  ngay trong thread cua pynput - Tkinter chi cho phep doc bien tu
+  luong UI chinh, nen goi nay co the loi va pynput ngung goi on_move.
+  Ket qua: chi ghi duoc mouse_down/mouse_up (2 dau mut), khong co
+  diem di chuyen o giua, Paint noi 2 dau mut bang 1 duong thang.
+  Sua: doc tuy chon ghi o luong UI truoc khi bat dau ghi, luu vao
+  bien bool thuong, listener chi doc bien thuong do.
 """
 import ctypes
 import json
@@ -46,7 +55,7 @@ except Exception:
 ctk.set_appearance_mode("System")
 ctk.set_default_color_theme("blue")
 
-VERSION = "1.1.0"
+VERSION = "1.1.1"
 REPO = "btanh258/AutoClickTool"
 RELEASES_API = f"https://api.github.com/repos/{REPO}/releases/latest"
 RELEASES_PAGE = f"https://github.com/{REPO}/releases"
@@ -319,12 +328,19 @@ class MacroTool(ctk.CTk):
         self.path_slot_3 = ctk.StringVar()
         self.record_move_var = ctk.BooleanVar(value=True)
         self.record_scroll_var = ctk.BooleanVar(value=True)
+        # Ban sao bool thuong cua 2 tuy chon tren: listener cua pynput
+        # chay o thread rieng, KHONG duoc goi .get() cua Tkinter tu do.
+        # Chi doc o luong UI (luc bat dau ghi / luc doi checkbox) roi
+        # luu vao day, listener chi doc 2 bien nay.
+        self._record_move = True
+        self._record_scroll = True
         self.auto_update_var = ctk.BooleanVar(value=True)
         self.speed_var = ctk.StringVar(value="1x")
         self._cfg_loops = "1"
         self._cfg_delay = "0"
 
         self.load_config()
+        self._sync_record_flags()
         self.setup_ui()
 
         self.bind("<Unmap>", self.on_minimize)
@@ -406,10 +422,10 @@ class MacroTool(ctk.CTk):
         frame_rec_opts.pack(pady=(0, 5))
         ctk.CTkCheckBox(frame_rec_opts, text="Ghi di chuyển chuột",
                         variable=self.record_move_var,
-                        command=self.save_config).grid(row=0, column=0, padx=15)
+                        command=self._on_record_opt_changed).grid(row=0, column=0, padx=15)
         ctk.CTkCheckBox(frame_rec_opts, text="Ghi cuộn chuột",
                         variable=self.record_scroll_var,
-                        command=self.save_config).grid(row=0, column=1, padx=15)
+                        command=self._on_record_opt_changed).grid(row=0, column=1, padx=15)
 
         # --- CAI DAT ---
         frame_settings = ctk.CTkFrame(self)
@@ -599,6 +615,18 @@ class MacroTool(ctk.CTk):
         self.events = events
         self.update_status(f"Đã tải kịch bản: {len(self.events)} hành động", "green")
 
+    def _sync_record_flags(self):
+        """Doc 2 tuy chon ghi tu bien Tkinter - CHI goi o luong UI."""
+        try:
+            self._record_move = bool(self.record_move_var.get())
+            self._record_scroll = bool(self.record_scroll_var.get())
+        except Exception:
+            pass
+
+    def _on_record_opt_changed(self):
+        self._sync_record_flags()
+        self.save_config()
+
     # ---------------- GHI ----------------
     def get_key_str(self, key):
         if hasattr(key, 'char') and key.char is not None:
@@ -616,41 +644,58 @@ class MacroTool(ctk.CTk):
         return str(key)
 
     def on_press(self, key):
-        if key == keyboard.Key.f12:
-            self.after(0, self.stop_recording)
-            return False
-        if self.is_recording:
-            self.events.append(('key_press', self.get_key_str(key),
-                                time.time() - self.start_time))
+        try:
+            if key == keyboard.Key.f12:
+                self.after(0, self.stop_recording)
+                return False
+            if self.is_recording:
+                self.events.append(('key_press', self.get_key_str(key),
+                                    time.time() - self.start_time))
+        except Exception:
+            pass
 
     def on_release(self, key):
-        if self.is_recording:
-            self.events.append(('key_release', self.get_key_str(key),
-                                time.time() - self.start_time))
+        try:
+            if self.is_recording:
+                self.events.append(('key_release', self.get_key_str(key),
+                                    time.time() - self.start_time))
+        except Exception:
+            pass
 
     def on_click(self, x, y, button, pressed):
-        if self.is_recording:
-            action = 'mouse_down' if pressed else 'mouse_up'
-            self.events.append((action, (x, y, str(button)),
-                                time.time() - self.start_time))
+        try:
+            if self.is_recording:
+                action = 'mouse_down' if pressed else 'mouse_up'
+                self.events.append((action, (x, y, str(button)),
+                                    time.time() - self.start_time))
+        except Exception:
+            pass
 
     def on_move(self, x, y):
-        if not self.is_recording or not self.record_move_var.get():
-            return
-        now = time.time() - self.start_time
-        lx, ly, lt = self._last_move
-        # Nen move: chi ghi khi di chuyen >= 8px hoac da hon 50ms ke tu
-        # diem ghi gan nhat - neu khong file kich ban phinh len hang
-        # nghin dong chi vi re chuot.
-        if abs(x - lx) < 8 and abs(y - ly) < 8 and now - lt < 0.05:
-            return
-        self._last_move = (x, y, now)
-        self.events.append(('mouse_move', (x, y), now))
+        # CHI doc bien bool thuong o day: goi bien Tkinter tu thread
+        # cua pynput la nguyen nhan 1.1.0 mat het diem di chuyen.
+        try:
+            if not self.is_recording or not self._record_move:
+                return
+            now = time.time() - self.start_time
+            lx, ly, lt = self._last_move
+            # Nen move: chi ghi khi di chuyen >= 8px hoac da hon 50ms ke tu
+            # diem ghi gan nhat - neu khong file kich ban phinh len hang
+            # nghin dong chi vi re chuot.
+            if abs(x - lx) < 8 and abs(y - ly) < 8 and now - lt < 0.05:
+                return
+            self._last_move = (x, y, now)
+            self.events.append(('mouse_move', (x, y), now))
+        except Exception:
+            pass
 
     def on_scroll(self, x, y, dx, dy):
-        if self.is_recording and self.record_scroll_var.get():
-            self.events.append(('mouse_scroll', (x, y, dx, dy),
-                                time.time() - self.start_time))
+        try:
+            if self.is_recording and self._record_scroll:
+                self.events.append(('mouse_scroll', (x, y, dx, dy),
+                                    time.time() - self.start_time))
+        except Exception:
+            pass
 
     def _stop_listeners(self):
         for listener in (self.keyboard_listener, self.mouse_listener):
@@ -667,6 +712,8 @@ class MacroTool(ctk.CTk):
             return
         self.events = []
         self._last_move = (0, 0, 0.0)
+        # Doc tuy chon ghi o luong UI, truoc khi listener bat dau chay.
+        self._sync_record_flags()
         self.is_recording = True
         self._stop_event.clear()
         self.update_status("Đang ghi... Nhấn F12 để dừng (hoặc menu khay -> Dừng ghi)",
@@ -693,7 +740,14 @@ class MacroTool(ctk.CTk):
             return
         self.is_recording = False
         self._stop_listeners()
-        self.update_status(f"Đã ghi: {len(self.events)} hành động", "green")
+        n_move = sum(1 for e in self.events if e[0] == 'mouse_move')
+        n_click = sum(1 for e in self.events if e[0] in ('mouse_down', 'mouse_up'))
+        n_scroll = sum(1 for e in self.events if e[0] == 'mouse_scroll')
+        n_key = sum(1 for e in self.events if e[0] in ('key_press', 'key_release'))
+        self.update_status(
+            f"Đã ghi: {len(self.events)} hành động "
+            f"({n_move} di chuyển, {n_click} click, {n_scroll} cuộn, {n_key} phím)",
+            "green")
         self.btn_record.configure(state="normal")
         self.btn_stop.configure(state="disabled")
         self._stop_tray()

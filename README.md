@@ -28,7 +28,7 @@ Chạy `Install_AutoClickTool.bat` (cài Python 3.11 nếu chưa có + các thư
 python AutoClickTool.pyw
 ```
 
-Muốn file exe duy nhất, chạy `Build_AutoClickTool.bat` (dùng PyInstaller, file ra ở `dist\AutoClickTool.exe`, kèm zip `AutoClickTool-1.1.0.zip`).
+Muốn file exe duy nhất, chạy `Build_AutoClickTool.bat` (dùng PyInstaller, file ra ở `dist\AutoClickTool.exe`, kèm zip `AutoClickTool-1.1.1.zip`).
 
 ## Cấu hình
 
@@ -46,6 +46,9 @@ Mỗi hành động là `[tên, dữ liệu, thời gian_giây_tính_từ_lúc_b
 | `mouse_scroll` | `[x, y, dx, dy]` |
 
 ## Lịch sử
+
+### 1.1.1 (2026-11-23)
+- Sửa lỗi vẽ nét cong thành nét thẳng trong Paint: `on_move`/`on_scroll` gọi `BooleanVar.get()` của Tkinter ngay trong thread của pynput — Tkinter chỉ cho đọc biến từ luồng UI chính nên pynput ngừng gọi `on_move`, chỉ còn lại `mouse_down`/`mouse_up` (2 đầu mút) nên Paint nối thành đường thẳng. Nay đọc tùy chọn ghi ở luồng UI trước khi ghi, lưu vào biến bool thường, listener chỉ đọc biến thường đó; bọc mọi callback listener trong `try/except` để một lỗi không giết listener. Dừng ghi giờ hiện số lượng từng loại: di chuyển / click / cuộn / phím, để kiểm tra ngay là đã ghi được điểm di chuyển chưa.
 
 ### 1.1.0 (2026-11-23)
 - Ghi di chuyển chuột + cuộn chuột (có bật/tắt, nén move)
