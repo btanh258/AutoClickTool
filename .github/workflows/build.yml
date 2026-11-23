@@ -44,17 +44,14 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install customtkinter pynput pystray pillow pyinstaller
 
-      - name: Build exe (onedir + cau noi onefile)
-        run: |
-          python -m PyInstaller --noconfirm --clean --onefile --windowed --name AutoClickTool --icon icon_AutoClickTool.ico --add-data "icon_AutoClickTool.ico;." --hidden-import pynput.keyboard._win32 --hidden-import pynput.mouse._win32 --hidden-import pystray._win32 AutoClickTool.pyw
-          Move-Item dist\AutoClickTool.exe .\AutoClickTool-bridge.exe
-          python -m PyInstaller --noconfirm --clean AutoClickTool.spec
-          Move-Item .\AutoClickTool-bridge.exe dist\AutoClickTool.exe
-
-      - name: Kiem tra exe
-        run: |
-          Get-Item dist\AutoClickTool\AutoClickTool.exe, dist\AutoClickTool.exe | Select-Object Length, FullName
-          python -m py_compile AutoClickTool.pyw
+      # THU TU QUAN TRONG: build spec (onedir) TRUOC, roi moi build cau noi
+      # onefile. Build onefile bang dong lenh se tu sinh lai file .spec
+      # (ghi de AutoClickTool.spec) - neu build no truoc thi build spec sau
+      # se ra onefile chu khong ra onedir nua. --specpath giu file .spec
+      # sinh ra o cho rieng, khong dong vao spec cua repo. Zip thu muc
+      # onedir ngay sau khi build xong de buoc sau khong anh huong toi no.
+      - name: Build exe onedir (spec)
+        run: python -m PyInstaller --noconfirm --clean AutoClickTool.spec
 
       - name: Dong goi zip (thu muc app onedir)
         shell: pwsh
@@ -62,6 +59,14 @@ jobs:
           if ($env:GITHUB_REF_TYPE -eq 'tag') { $tag = $env:GITHUB_REF_NAME } else { $tag = '${{ inputs.tag }}' }
           Compress-Archive -Path 'dist\AutoClickTool' -DestinationPath "AutoClickTool-$tag.zip" -Force
           Get-Item "AutoClickTool-$tag.zip" | Select-Object Length, FullName
+
+      - name: Build exe cau noi onefile
+        run: python -m PyInstaller --noconfirm --clean --onefile --windowed --name AutoClickTool --icon icon_AutoClickTool.ico --add-data "icon_AutoClickTool.ico;." --hidden-import pynput.keyboard._win32 --hidden-import pynput.mouse._win32 --hidden-import pystray._win32 --specpath .\bridge-spec AutoClickTool.pyw
+
+      - name: Kiem tra exe
+        run: |
+          Get-Item dist\AutoClickTool\AutoClickTool.exe, dist\AutoClickTool.exe | Select-Object Length, FullName
+          python -m py_compile AutoClickTool.pyw
 
       - name: Gan exe + zip vao release
         uses: softprops/action-gh-release@v2
